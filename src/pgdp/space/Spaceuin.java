@@ -34,7 +34,8 @@ public class Spaceuin extends Thread {
 
     @Override
     public void run() {
-            startTravel(start);
+        flightRecorder.recordArrival(start);
+        startTravel(start);
     }
 
     @Override
@@ -43,9 +44,9 @@ public class Spaceuin extends Thread {
     }
 
     private void startTravel(Beacon start) {
-        doneBeacon.put(start, new ArrayList<>());
+        doneBeacon.computeIfAbsent(start, doneRoutes -> new ArrayList<>());
 
-        while (doneBeacon.size() != start.connections().size() && !isDone) {
+        while (doneBeacon.get(start).size() < start.connections().size() && !isDone) {
             for (BeaconConnection connection : start.connections()) {
                 Beacon nextBeacon = connection.beacon();
 
@@ -63,7 +64,7 @@ public class Spaceuin extends Thread {
 
                 try {
                     if (connection.type() == NORMAL) {
-                        goToNextBeacon(nextBeacon);
+                        goToNextBeacon(start, nextBeacon);
                     } else {
                         buildNewBeacon(nextBeacon);
                     }
@@ -75,7 +76,7 @@ public class Spaceuin extends Thread {
         }
     }
 
-    private void goToNextBeacon(Beacon nextBeacon) {
+    private void goToNextBeacon(Beacon start, Beacon nextBeacon) {
         try {
             SpaceDispatcher.INSTANCE.lock(nextBeacon);
             flightRecorder.recordDeparture(start);
