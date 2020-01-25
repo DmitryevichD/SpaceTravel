@@ -1,6 +1,5 @@
 package pgdp.space;
 
-import static java.lang.Thread.sleep;
 import static pgdp.space.ConnectionType.*;
 
 import java.util.Collections;

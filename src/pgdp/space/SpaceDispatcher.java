@@ -1,11 +1,10 @@
 package pgdp.space;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 public enum SpaceDispatcher {
-    INSTANCE("SpaceGroup");
+    DISPATCHER("SpaceGroup");
 
     private final ThreadGroup threadGroup;
     private final List<Beacon> beacons = new ArrayList<>();
@@ -18,12 +17,13 @@ public enum SpaceDispatcher {
         return threadGroup;
     }
 
-    public void lock(Beacon beacon) {
+    public boolean lock(Beacon beacon) {
         synchronized (beacons) {
             if (beacons.contains(beacon)) {
-                throw new RuntimeException();
+                return false;
             } else {
                 beacons.add(beacon);
+                return true;
             }
         }
     }
@@ -36,9 +36,5 @@ public enum SpaceDispatcher {
         synchronized (beacons) {
             beacons.remove(beacon);
         }
-    }
-
-    public boolean isLock(Beacon beacon) {
-        return beacons.contains(beacon);
     }
 }
