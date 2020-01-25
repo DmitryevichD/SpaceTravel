@@ -65,6 +65,7 @@ public class Spaceuin extends Thread {
                 pastPoints.add(start);
                 goToNextBeacon(start, nextBeacon);
             } else {
+                arrived(nextBeacon);
                 buildNewBeacon(nextBeacon);
             }
 
