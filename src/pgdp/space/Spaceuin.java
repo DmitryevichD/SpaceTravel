@@ -13,16 +13,18 @@ public class Spaceuin extends Thread {
         return threadInitNumber++;
     }
 
-    private Beacon start;
-    private Beacon destination;
-    private FlightRecorder flightRecorder;
-    private boolean isDone = false;
-    private List<Beacon> pastPoints = new ArrayList<>();
+    private final Beacon startBeacon;
+    private final Beacon destinationBeacon;
+    private final FlightRecorder flightRecorder;
+    //Beacons, where was Pingu
+    private final List<Beacon> pastBeacons = new ArrayList<>();
+    //Current beacon, when blocked the Pingu
+    private Beacon currentLockBeacon;
 
-    public Spaceuin(Beacon start, Beacon destination, FlightRecorder flightRecorder) {
+    public Spaceuin(Beacon startBeacon, Beacon destinationBeacon, FlightRecorder flightRecorder) {
         super(DISPATCHER.getThreadGroup(), "Thread-" + nextThreadNum());
-        this.start = start;
-        this.destination = destination;
+        this.startBeacon = startBeacon;
+        this.destinationBeacon = destinationBeacon;
         this.flightRecorder = flightRecorder;
     }
 
@@ -33,71 +35,104 @@ public class Spaceuin extends Thread {
 
     @Override
     public void run() {
-        while (DISPATCHER.lock(start) && !isDone) {
-            arrived(start);
-            startTravel(start);
+        while (!isInterrupted() ) {
+            try {
+                currentLockBeacon = DISPATCHER.lockBeacon(startBeacon);
+                arrivedMsg(startBeacon);
+                startTravel(startBeacon);
+                break;
+            } catch (Exception ex) {
+                //lock beacon is failed, try again, until interrupted
+            }
         }
     }
 
     @Override
     public void interrupt() {
-        isDone = true;
+        //when thread is interrupt - unlock current beacon
+        DISPATCHER.unlockBeacon(currentLockBeacon);
+        super.interrupt();
     }
 
     private void startTravel(Beacon start) {
         for (BeaconConnection connection : start.connections()) {
 
-            if (isDone) {
+            //check interrupted
+            if (isInterrupted()) {
                 break;
             }
 
             Beacon nextBeacon = connection.beacon();
 
+            //check equals start and next beacon
             if (start.equals(nextBeacon)) {
                 continue;
             }
 
-            if (pastPoints.contains(nextBeacon)) {
+            //check beacon where was Pingu
+            if (pastBeacons.contains(nextBeacon)) {
                 continue;
             }
 
             if (connection.type() == NORMAL) {
-                pastPoints.add(start);
+                pastBeacons.add(start); //mark start beacon as past and go to next beacon
                 goToNextBeacon(start, nextBeacon);
             } else {
-                arrived(nextBeacon);
                 buildNewBeacon(nextBeacon);
             }
 
         }
-        pastPoints.add(start);
+
+        //when all connected beacon is done, mart current beacon as past, unlock him and go back
+        pastBeacons.add(start);
+        departureMsg(start);
+        DISPATCHER.unlockBeacon(start);
     }
 
     private void goToNextBeacon(Beacon start, Beacon nextBeacon) {
-        while (DISPATCHER.lock(nextBeacon) && !isDone) {
-            continue;
+        //unlock current beacon and go to next beacon
+        DISPATCHER.unlockBeacon(start);
+        departureMsg(start);
+
+        while (!isInterrupted()) {
+            try {
+                currentLockBeacon = DISPATCHER.lockBeacon(nextBeacon);
+                break;
+            } catch (Exception ex) {
+                //lock beacon is failed, try again, until interrupted
+            }
         }
 
-        arrived(nextBeacon);
-        DISPATCHER.unlock(start);
+        arrivedMsg(nextBeacon);
 
-        if (destination.equals(nextBeacon)) {
-            flightRecorder.tellStory();
-            DISPATCHER.stopSearch();
+        if (destinationBeacon.equals(nextBeacon)) {
+            if (!isInterrupted()) {
+                DISPATCHER.stopSearch();
+                flightRecorder.tellStory();
+                DISPATCHER.unlockBeacon(nextBeacon);
+            }
         } else {
             startTravel(nextBeacon);
-            arrived(start);
+            arrivedMsg(start);
         }
     }
 
     private void buildNewBeacon(Beacon beacon) {
-        Spaceuin spaceuin = new Spaceuin(beacon, destination, flightRecorder.createCopy());
+        Spaceuin spaceuin = new Spaceuin(beacon, destinationBeacon, flightRecorder.createCopy());
         spaceuin.start();
     }
 
-    private void arrived(Beacon beacon) {
-        if (!isDone) {
+    //record message until interrupt
+    private void arrivedMsg(Beacon beacon) {
+        if (!isInterrupted()) {
             flightRecorder.recordArrival(beacon);
+        }
+    }
+
+    //record message until interrupt
+    private void departureMsg(Beacon beacon) {
+        if (!isInterrupted()) {
+            flightRecorder.recordDeparture(beacon);
         }
     }
 }

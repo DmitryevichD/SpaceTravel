@@ -3,6 +3,9 @@ package pgdp.space;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Thread safe singleton for sync threads.
+ */
 public enum SpaceDispatcher {
     DISPATCHER("SpaceGroup");
 
@@ -17,22 +20,30 @@ public enum SpaceDispatcher {
         return threadGroup;
     }
 
-    public boolean lock(Beacon beacon) {
+    public Beacon lockBeacon(Beacon beacon) {
+        //sync locks by object beacon
         synchronized (beacons) {
-            if (beacons.contains(beacon)) {
-                return false;
+            if (beacons.contains(beacon)){
+                throw new RuntimeException();
             } else {
                 beacons.add(beacon);
-                return true;
+                return beacon;
             }
         }
     }
 
     public void stopSearch() {
-        threadGroup.interrupt();
+        //sync locks by object beacon
+        synchronized (beacons) {
+            //stop all thread
+            threadGroup.interrupt();
+            //clean all lock
+            beacons.clear();
+        }
     }
 
-    public void unlock(Beacon beacon) {
+    public void unlockBeacon(Beacon beacon) {
+        //sync locks by object beacon
         synchronized (beacons) {
             beacons.remove(beacon);
         }
